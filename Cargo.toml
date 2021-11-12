@@ -1,0 +1,12 @@
+[package]
+name = "ron-parser"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+strum_macros = "0.22"
+ariadne = "0.1"
+indexmap = "1.7"
+maplit = "1.0"

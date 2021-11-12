@@ -1,0 +1,5 @@
+value  = struct | tuple | list | map | NUMBER | STRING | BOOL | NONE
+tuple  = "(" value ("," value)* ")"
+list   = "[" value ("," value)* "]"
+map    = "{" STRING ":" value ("," STRING ":" value)* "}"
+struct = [ IDENT ] "{" IDENT ":" value ("," IDENT ":" value)* "}"
