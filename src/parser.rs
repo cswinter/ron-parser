@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use ariadne::{Config, Label, Report, ReportBuilder, ReportKind};
+use ariadne::{Label, Report, ReportBuilder, ReportKind};
 use indexmap::IndexMap;
 
 use crate::token::{Span, Token, TokenKind};
@@ -10,19 +10,17 @@ use crate::Lexer;
 type Result<T> = std::result::Result<T, ReportBuilder<Range<usize>>>;
 
 pub struct Parser {
-    tokens: Vec<Token>,
+    pub(crate) tokens: Vec<Token>,
     current: usize,
-    color: bool,
     errors: Vec<ReportBuilder<Range<usize>>>,
 }
 
 impl Parser {
-    pub fn new(source: &str, color: bool) -> Parser {
+    pub fn new(source: &str) -> Parser {
         let (tokens, errors) = Lexer::new(source).scan();
         Parser {
             tokens,
             current: 0,
-            color,
             errors,
         }
     }
@@ -37,17 +35,42 @@ impl Parser {
     }
 
     fn value(&mut self) -> Value {
-        let start = self.pos();
         let val = match self.peek().kind {
             TokenKind::Ident => self.structure(),
             TokenKind::LeftParen => self.struct_or_tuple(),
             TokenKind::LeftBrace => self.map(),
             TokenKind::LeftBracket => self.list(),
-            TokenKind::False => Ok(Value::Bool(false)),
-            TokenKind::True => Ok(Value::Bool(true)),
-            TokenKind::Number => Ok(Value::Number(Number::Integer(
-                self.advance().text.parse().unwrap(),
-            ))),
+            TokenKind::False => {
+                self.advance();
+                Ok(Value::Bool(false))
+            }
+            TokenKind::True => {
+                self.advance();
+                Ok(Value::Bool(true))
+            }
+            TokenKind::Number => {
+                let text = self.advance().text.clone();
+                match text.parse::<i64>() {
+                    Ok(int) => Ok(Value::Number(Number::Integer(int))),
+                    Err(_) => match text.parse::<f64>() {
+                        Ok(float) => Ok(Value::Number(Number::from(float))),
+                        Err(err) => {
+                            Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+                                .with_message(format!("Malformed number `{}`", text))
+                                .with_label(
+                                    Label::new(self.peek().span.start..self.peek().span.end)
+                                        .with_message(""),
+                                )
+                                .with_note(format!("Failed to parse number: {}", err)))
+                        }
+                    },
+                }
+            }
+            TokenKind::String => {
+                // TODO: handle escapes
+                let text = self.advance().text.clone();
+                Ok(Value::String(text))
+            }
             TokenKind::Eof => todo!(),
             _ => todo!(),
         };

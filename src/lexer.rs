@@ -77,6 +77,8 @@ impl<'a> Lexer<'a> {
                 ')' => TokenKind::RightParen,
                 '{' => TokenKind::LeftBrace,
                 '}' => TokenKind::RightBrace,
+                '[' => TokenKind::LeftBracket,
+                ']' => TokenKind::RightBracket,
                 ':' => TokenKind::Colon,
                 ',' => TokenKind::Comma,
                 '/' => {
@@ -98,9 +100,13 @@ impl<'a> Lexer<'a> {
                 }
                 ' ' | '\r' | '\t' => TokenKind::Whitespace,
                 '\n' => TokenKind::Newline,
-                '0'..='9' => {
+                '0'..='9' | '-' => {
                     self.number();
                     TokenKind::Number
+                }
+                '"' => {
+                    self.string();
+                    TokenKind::String
                 }
                 '_' | 'a'..='z' | 'A'..='Z' => {
                     self.ident();
@@ -126,8 +132,18 @@ impl<'a> Lexer<'a> {
     }
 
     fn number(&mut self) {
-        while let Some('0'..='9') = self.peek() {
+        while let Some('0'..='9' | '-' | '+' | '.' | 'e') = self.peek() {
             self.advance();
+        }
+    }
+
+    fn string(&mut self) {
+        let mut escaped = false;
+        while let Some(c) = self.advance() {
+            if c == '"' && !escaped {
+                break;
+            }
+            escaped = c == '\\';
         }
     }
 

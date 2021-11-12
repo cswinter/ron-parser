@@ -115,7 +115,7 @@ fn test_struct_with_all_types() {
 }
 
 fn expect_error(input: &str, error: &str) {
-    let parser = Parser::new(input, false);
+    let parser = Parser::new(input);
     let (val, errors) = parser.parse();
     if errors.is_empty() {
         panic!("Expected error, got {:?}", val);
@@ -134,9 +134,11 @@ fn expect_error(input: &str, error: &str) {
 }
 
 fn test_parse(input: &str, expected: Value) {
-    let parser = Parser::new(input, true);
+    let parser = Parser::new(input);
+    let _tokens = parser.tokens.clone();
     let (val, errors) = parser.parse();
     if !errors.is_empty() {
+        // println!("{:#?}", _tokens);
         for error in errors {
             error.finish().print(Source::from(input)).unwrap();
         }
