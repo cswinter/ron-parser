@@ -3,7 +3,7 @@ use std::ops::Range;
 use ariadne::{Label, Report, ReportBuilder, ReportKind};
 use indexmap::IndexMap;
 
-use crate::token::{Span, Token, TokenKind};
+use crate::token::{Token, TokenKind};
 use crate::value::{Map, Number, Struct, Value};
 use crate::Lexer;
 
@@ -26,10 +26,14 @@ impl Parser {
     }
 
     pub fn parse(mut self) -> (Value, Vec<ReportBuilder<Range<usize>>>) {
-        //(ASTNode, Vec<CompileError>) {
         let value = self.value();
         if !self.is_at_end() {
-            //self.errors.push(CompileError::expeced_eof(self.peek()));
+            self.errors.push(
+                Report::build(ReportKind::Error, (), self.pos())
+                    .with_message("Expected end of input.")
+                    .with_label(Label::new(self.pos()..self.pos()).with_message(""))
+                    .with_note("Valid escape sequences are: `\\n`, `\\r`, `\\t`, `\\\"`, `\\0`"),
+            );
         }
         (value, self.errors)
     }
@@ -278,14 +282,6 @@ impl Parser {
         Ok(Value::Seq(values))
     }
 
-    fn name(&mut self) -> Result<String> {
-        Ok(self.require(TokenKind::Ident)?.text.to_string())
-    }
-
-    fn check(&self, kind: TokenKind) -> bool {
-        self.peek().kind == kind
-    }
-
     fn check2(&self, kind: TokenKind) -> bool {
         self.current + 1 < self.tokens.len() && self.tokens[self.current + 1].kind == kind
     }
@@ -311,15 +307,6 @@ impl Parser {
         }
     }
 
-    fn consume_one_of(&mut self, tokens: &[TokenKind]) -> bool {
-        if tokens.contains(&self.peek().kind) {
-            self.advance();
-            true
-        } else {
-            false
-        }
-    }
-
     fn require(&mut self, token: TokenKind) -> Result<&Token> {
         if self.peek().kind == token {
             Ok(self.advance())
@@ -336,24 +323,6 @@ impl Parser {
         }
     }
 
-    fn require_one_of(&mut self, tokens: &[TokenKind]) -> Result<&Token> {
-        if tokens.contains(&self.peek().kind) {
-            Ok(self.advance())
-        } else {
-            Err(
-                Report::build(ReportKind::Error, (), self.peek().span.start).with_message(format!(
-                    "Expected one of {} but found {}",
-                    tokens
-                        .iter()
-                        .map(|t| t.to_string())
-                        .collect::<Vec<String>>()
-                        .join(", "),
-                    self.peek().kind
-                )),
-            )
-        }
-    }
-
     fn advance(&mut self) -> &Token {
         if !self.is_at_end() {
             self.current += 1
@@ -365,23 +334,7 @@ impl Parser {
         self.peek().kind == TokenKind::Eof
     }
 
-    /*fn synchronize(&mut self) {
-        while !self.is_at_end() {
-            match self.advance().kind {
-                TokenKind::Semi | TokenKind::Newline => return,
-                _ => {}
-            }
-        }
-    }*/
-
     fn pos(&self) -> usize {
         self.peek().span.start
-    }
-
-    fn span_from(&self, start: usize) -> Span {
-        Span {
-            start,
-            end: self.previous().span.end,
-        }
     }
 }
