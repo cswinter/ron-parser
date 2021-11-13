@@ -4,7 +4,7 @@ use ariadne::{Label, Report, ReportBuilder, ReportKind};
 use indexmap::IndexMap;
 
 use crate::token::{Span, Token, TokenKind};
-use crate::value::{Number, Struct, Value};
+use crate::value::{Map, Number, Struct, Value};
 use crate::Lexer;
 
 type Result<T> = std::result::Result<T, ReportBuilder<Range<usize>>>;
@@ -138,8 +138,36 @@ impl Parser {
         todo!()
     }
 
-    fn map(&self) -> Result<Value> {
-        todo!()
+    fn map(&mut self) -> Result<Value> {
+        self.require(TokenKind::LeftBrace)?;
+        let mut fields = IndexMap::default();
+        loop {
+            let key = self.value();
+            self.require(TokenKind::Colon)?;
+            let value = self.value();
+            fields.insert(key, value);
+            if !self.consume(TokenKind::Comma) {
+                break;
+            }
+            if self.peek().kind == TokenKind::RightBrace {
+                break;
+            }
+        }
+
+        if !self.consume(TokenKind::RightBrace) {
+            return Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+                .with_message(format!("Unexpected token `{}`", self.peek().kind))
+                .with_label(
+                    Label::new(self.peek().span.start..self.peek().span.end)
+                        .with_message(format!("Expected `}}`, found `{}`", self.peek().text)),
+                )
+                .with_label(
+                    Label::new(self.pos()..self.peek().span.start).with_message("Map begins here"),
+                )
+                .with_note("Expected `}` at end of map"));
+        }
+
+        Ok(Value::Map(Map(fields)))
     }
 
     fn seq(&mut self) -> Result<Value> {
