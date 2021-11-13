@@ -39,7 +39,7 @@ impl Parser {
             TokenKind::Ident => self.structure(),
             TokenKind::LeftParen => self.struct_or_tuple(),
             TokenKind::LeftBrace => self.map(),
-            TokenKind::LeftBracket => self.list(),
+            TokenKind::LeftBracket => self.seq(),
             TokenKind::False => {
                 self.advance();
                 Ok(Value::Bool(false))
@@ -142,8 +142,37 @@ impl Parser {
         todo!()
     }
 
-    fn list(&self) -> Result<Value> {
-        todo!()
+    fn seq(&mut self) -> Result<Value> {
+        self.require(TokenKind::LeftBracket)?;
+
+        let mut values = Vec::new();
+
+        loop {
+            if self.peek().kind == TokenKind::RightBracket {
+                break;
+            }
+            values.push(self.value());
+            if !self.consume(TokenKind::Comma) {
+                // TODO(clemens): recover from missing comma
+                break;
+            }
+        }
+
+        if !self.consume(TokenKind::RightBracket) {
+            return Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+                .with_message(format!("Unexpected token `{}`", self.peek().kind))
+                .with_label(
+                    Label::new(self.peek().span.start..self.peek().span.end)
+                        .with_message(format!("Expected `]`, found `{}`", self.peek().text)),
+                )
+                .with_label(
+                    Label::new(self.peek().span.start..self.peek().span.end)
+                        .with_message("List begins here"),
+                )
+                .with_note("Expected `]` at end of list"));
+        }
+
+        Ok(Value::Seq(values))
     }
 
     fn name(&mut self) -> Result<String> {
