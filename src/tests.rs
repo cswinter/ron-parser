@@ -79,9 +79,14 @@ Config(
     bool: true,
     string: "foo",
     list: [1, 2, 3],
+    /*
+    multiline
+    comment //
+     */
     map: {Struct(a: "14", c: [(), 3, true]): "bar"},
     tuple: (1, 2, 3),
-    empty: (),
+    // comment
+    empty: /* comment */ (),
     none: None,
 )"#;
 
@@ -105,10 +110,7 @@ fn test_struct_with_all_types() {
                     fields: indexmap! {
                         "a".to_string() => Value::String("14".to_string()),
                         "c".to_string() => Value::Seq(vec![
-                            Value::Struct(Struct {
-                                name: Some("()".to_string()),
-                                fields: indexmap! {},
-                            }),
+                            Value::Unit,
                             Value::Number(Number::Integer(3)),
                             Value::Bool(true),
                         ]),
@@ -120,11 +122,28 @@ fn test_struct_with_all_types() {
                 Value::Number(Number::Integer(2)),
                 Value::Number(Number::Integer(3)),
             ]),
-            "empty".to_string() => Value::Tuple(vec![]),
+            "empty".to_string() => Value::Unit,
             "none".to_string() => Value::Option(None),
         },
     });
     test_parse(STRUCT_WITH_ALL_TYPES, expected);
+}
+
+static STRING_ESCAPES: &str = r#"
+[
+    "foo\n
+    bar",
+    "foo\r\"\\n\\b\\\\ar\"\"\"\\",
+]
+"#;
+
+#[test]
+fn test_string_escapes() {
+    let expected = Value::Seq(vec![
+        Value::String("foo\n\n    bar".to_string()),
+        Value::String("foo\r\"\\n\\b\\\\ar\"\"\"\\".to_string()),
+    ]);
+    test_parse(STRING_ESCAPES, expected);
 }
 
 fn expect_error(input: &str, error: &str) {
@@ -151,7 +170,7 @@ fn test_parse(input: &str, expected: Value) {
     let _tokens = parser.tokens.clone();
     let (val, errors) = parser.parse();
     if !errors.is_empty() {
-        // println!("{:#?}", _tokens);
+        //println!("{:#?}", _tokens);
         for error in errors {
             error.finish().print(Source::from(input)).unwrap();
         }

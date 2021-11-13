@@ -75,17 +75,46 @@ impl Parser {
                 }
             }
             TokenKind::String => {
-                let text = &self.advance().text;
-                Ok(Value::String(
-                    // TODO: unicode escapes, 7bit character codes
-                    text[1..text.len() - 1]
-                        .replace("\\\\", "\\")
-                        .replace("\\\"", "\"")
-                        .replace("\\n", "\n")
-                        .replace("\\r", "\r")
-                        .replace("\\t", "\t")
-                        .replace("\\0", "\0"),
-                ))
+                // TODO: unicode escapes, 7bit character codes
+                let mut string = String::new();
+                let mut escaped = false;
+                let text = self.advance().text.clone();
+                for (i, char) in text[1..text.len() - 1].chars().enumerate() {
+                    if escaped {
+                        match char {
+                            'n' => string.push('\n'),
+                            'r' => string.push('\r'),
+                            't' => string.push('\t'),
+                            '\\' => string.push('\\'),
+                            '"' => string.push('"'),
+                            '0' => string.push('\0'),
+                            _ => {
+                                self.errors.push(
+                                    Report::build(
+                                        ReportKind::Error,
+                                        (),
+                                        self.peek().span.start + i - 1,
+                                    )
+                                    .with_message(format!("unknown character escape: `\\{}`", char))
+                                    .with_label(
+                                        Label::new(
+                                            self.peek().span.start + i - 1
+                                                ..self.peek().span.start + i,
+                                        )
+                                        .with_message(""),
+                                    )
+                                    .with_note("Valid escape sequences are: `\\n`, `\\r`, `\\t`, `\\\"`, `\\0`"),
+                                );
+                            }
+                        }
+                        escaped = false;
+                    } else if char == '\\' {
+                        escaped = true;
+                    } else {
+                        string.push(char);
+                    }
+                }
+                Ok(Value::String(string))
             }
             TokenKind::Eof => todo!(),
             _ => todo!(),

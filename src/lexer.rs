@@ -144,7 +144,7 @@ impl<'a> Lexer<'a> {
             if c == '"' && !escaped {
                 break;
             }
-            escaped = c == '\\';
+            escaped = c == '\\' && !escaped;
         }
     }
 
