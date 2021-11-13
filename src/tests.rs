@@ -146,6 +146,25 @@ fn test_string_escapes() {
     test_parse(STRING_ESCAPES, expected);
 }
 
+static MISSING_CLOSING_BRACKET: &str = r#"
+[
+    "foo
+    bar"
+"#;
+
+static MISSING_CLOSING_BRACKET_ERROR: &str = r#"Error: Unexpected token `<EOF>`
+   ╭─[<unknown>:4:10]
+   │
+   · 
+   · Note: Expected `]` at end of list
+───╯
+"#;
+
+#[test]
+fn test_missing_closing_bracket() {
+    expect_error(MISSING_CLOSING_BRACKET, MISSING_CLOSING_BRACKET_ERROR);
+}
+
 fn expect_error(input: &str, error: &str) {
     let parser = Parser::new(input);
     let (val, errors) = parser.parse();
@@ -170,7 +189,7 @@ fn test_parse(input: &str, expected: Value) {
     let _tokens = parser.tokens.clone();
     let (val, errors) = parser.parse();
     if !errors.is_empty() {
-        //println!("{:#?}", _tokens);
+        // println!("{:#?}", _tokens);
         for error in errors {
             error.finish().print(Source::from(input)).unwrap();
         }

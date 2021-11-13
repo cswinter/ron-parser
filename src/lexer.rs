@@ -82,22 +82,19 @@ impl<'a> Lexer<'a> {
                 ']' => TokenKind::RightBracket,
                 ':' => TokenKind::Colon,
                 ',' => TokenKind::Comma,
-                '/' => {
-                    if self.consume('/') {
-                        while self.peek().is_some() && self.peek() != Some('\n') {
-                            self.advance();
-                        }
-                        TokenKind::Comment
-                    } else if self.consume('*') {
-                        let previous = ' ';
-                        while self.peek().is_some() && (self.peek() != Some('/') || previous != '*')
-                        {
-                            self.advance();
-                        }
-                        TokenKind::Comment
-                    } else {
-                        todo!()
+                '/' if self.consume('/') => {
+                    while self.peek().is_some() && self.peek() != Some('\n') {
+                        self.advance();
                     }
+                    TokenKind::Comment
+                }
+                '/' if self.consume('*') => {
+                    let mut previous = ' ';
+                    while self.peek().is_some() && (self.peek() != Some('/') || previous != '*') {
+                        previous = self.advance().unwrap();
+                    }
+                    self.advance();
+                    TokenKind::Comment
                 }
                 ' ' | '\r' | '\t' => TokenKind::Whitespace,
                 '\n' => TokenKind::Newline,
