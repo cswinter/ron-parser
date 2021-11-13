@@ -75,9 +75,17 @@ impl Parser {
                 }
             }
             TokenKind::String => {
-                // TODO: handle escapes
-                let text = self.advance().text.clone();
-                Ok(Value::String(text))
+                let text = &self.advance().text;
+                Ok(Value::String(
+                    // TODO: unicode escapes, 7bit character codes
+                    text[1..text.len() - 1]
+                        .replace("\\\\", "\\")
+                        .replace("\\\"", "\"")
+                        .replace("\\n", "\n")
+                        .replace("\\r", "\r")
+                        .replace("\\t", "\t")
+                        .replace("\\0", "\0"),
+                ))
             }
             TokenKind::Eof => todo!(),
             _ => todo!(),
