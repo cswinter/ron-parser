@@ -165,21 +165,61 @@ fn test_missing_closing_bracket() {
     expect_error(MISSING_CLOSING_BRACKET, MISSING_CLOSING_BRACKET_ERROR);
 }
 
+#[test]
+fn test_struct() {
+    test_parse(
+        "MyStruct(x:4,y:7,)",
+        Value::Struct(Struct {
+            name: Some("MyStruct".to_string()),
+            fields: indexmap! {
+                "x".to_string() => Value::Number(Number::Integer(4)),
+                "y".to_string() => Value::Number(Number::Integer(7)),
+            },
+        }),
+    );
+    test_parse(
+        "(x:4,y:7)",
+        Value::Struct(Struct {
+            name: None,
+            fields: indexmap! {
+                "x".to_string() => Value::Number(Number::Integer(4)),
+                "y".to_string() => Value::Number(Number::Integer(7)),
+            },
+        }),
+    );
+    test_parse(
+        "NewType(42)",
+        Value::Tuple(vec![Value::Number(Number::Integer(42))]),
+    );
+    test_parse(
+        "(33)",
+        Value::Tuple(vec![Value::Number(Number::Integer(33))]),
+    );
+    test_parse("TupleStruct(2,5,)", Value::Tuple(vec![
+        Value::Number(Number::Integer(2)),
+        Value::Number(Number::Integer(5)),
+    ]));
+}
+
 fn expect_error(input: &str, error: &str) {
     let parser = Parser::new(input);
     let (val, errors) = parser.parse();
     if errors.is_empty() {
         panic!("Expected error, got {:?}", val);
     } else {
+        let mut first = true;
         for rb in errors {
             let report = rb.with_config(Config::default().with_color(false)).finish();
             let mut err = vec![];
             report.write(Source::from(input), &mut err).unwrap();
             let err = String::from_utf8(err).unwrap();
-            if err != error {
-                report.print(Source::from(input)).unwrap();
+            if first {
+                if err != error {
+                    report.print(Source::from(input)).unwrap();
+                }
+                assert_eq!(err, error);
+                first = false;
             }
-            assert_eq!(err, error);
         }
     }
 }

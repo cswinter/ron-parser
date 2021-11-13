@@ -31,8 +31,7 @@ impl Parser {
             self.errors.push(
                 Report::build(ReportKind::Error, (), self.pos())
                     .with_message("Expected end of input.")
-                    .with_label(Label::new(self.pos()..self.pos()).with_message(""))
-                    .with_note("Valid escape sequences are: `\\n`, `\\r`, `\\t`, `\\\"`, `\\0`"),
+                    .with_label(Label::new(self.pos()..self.pos()).with_message("")),
             );
         }
         (value, self.errors)
