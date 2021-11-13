@@ -34,6 +34,7 @@ pub enum TokenKind {
     Ident,
     Number,
     String,
+    None,
 
     Eof,
 }
@@ -54,6 +55,7 @@ impl TokenKind {
             TokenKind::Newline => "\\n",
             TokenKind::False => "false",
             TokenKind::True => "true",
+            TokenKind::None => "None",
             TokenKind::Number => "<NUMBER>",
             TokenKind::Eof => "<EOF>",
             TokenKind::Ident => "<IDENT>",

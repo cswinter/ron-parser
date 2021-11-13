@@ -31,12 +31,12 @@ static INVALID_STRUCT_ERROR: &str = r#"Error: Unexpected token `)`
    │
  4 │     foo: bar
    ·          ──┬─  
-   ·            ╰─── Struct begins here
+   ·            ╰─── Tuple begins here
  5 │ )
    · ┬  
    · ╰── Expected `(`, found `)`
    · 
-   · Note: Expected `(` at start of struct
+   · Note: Expected `(` at start of tuple
 ───╯
 "#;
 
@@ -79,7 +79,7 @@ Config(
     bool: true,
     string: "foo",
     list: [1, 2, 3],
-    map: {foo: "bar"},
+    map: {Struct(a: "14", c: [(), 3, true]): "bar"},
     tuple: (1, 2, 3),
     empty: (),
     none: None,
@@ -100,7 +100,20 @@ fn test_struct_with_all_types() {
                 Value::Number(Number::Integer(3)),
             ]),
             "map".to_string() => Value::Map(Map(indexmap! {
-                Value::String("foo".to_string()) => Value::String("bar".to_string()),
+                Value::Struct(Struct {
+                    name: Some("Struct".to_string()),
+                    fields: indexmap! {
+                        "a".to_string() => Value::String("14".to_string()),
+                        "c".to_string() => Value::Seq(vec![
+                            Value::Struct(Struct {
+                                name: Some("()".to_string()),
+                                fields: indexmap! {},
+                            }),
+                            Value::Number(Number::Integer(3)),
+                            Value::Bool(true),
+                        ]),
+                    },
+                }) => Value::String("bar".to_string()),
             })),
             "tuple".to_string() => Value::Tuple(vec![
                 Value::Number(Number::Integer(1)),

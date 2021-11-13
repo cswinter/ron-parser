@@ -52,6 +52,10 @@ impl Parser {
                 self.advance();
                 Ok(Value::Bool(true))
             }
+            TokenKind::None => {
+                self.advance();
+                Ok(Value::Option(None))
+            }
             TokenKind::Number => {
                 let text = self.advance().text.clone();
                 match text.parse::<i64>() {
@@ -148,7 +152,7 @@ impl Parser {
                         .with_message(format!("Expected `(`, found `{}`", self.peek().text)),
                 )
                 .with_label(
-                    Label::new(start..self.peek().span.start).with_message("Tuple started here"),
+                    Label::new(start..self.peek().span.start).with_message("Tuple begins here"),
                 )
                 .with_note("Expected `(` at start of tuple"));
         }

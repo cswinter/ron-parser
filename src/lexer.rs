@@ -49,6 +49,7 @@ impl<'a> Lexer<'a> {
                         match span.text.as_ref() {
                             "true" => span.kind = TokenKind::True,
                             "false" => span.kind = TokenKind::False,
+                            "None" => span.kind = TokenKind::None,
                             _ => {}
                         }
                     }
