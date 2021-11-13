@@ -36,8 +36,12 @@ impl Parser {
 
     fn value(&mut self) -> Value {
         let val = match self.peek().kind {
-            TokenKind::Ident => self.structure(),
-            TokenKind::LeftParen => self.struct_or_tuple(),
+            TokenKind::Ident => {
+                let start = self.peek().span.start;
+                let name = self.advance().text.clone();
+                self.struct_or_tuple(start, Some(name))
+            }
+            TokenKind::LeftParen => self.struct_or_tuple(self.peek().span.start, None),
             TokenKind::LeftBrace => self.map(),
             TokenKind::LeftBracket => self.seq(),
             TokenKind::False => {
@@ -83,14 +87,15 @@ impl Parser {
         }
     }
 
-    fn structure(&mut self) -> Result<Value> {
-        let start = self.pos();
-        let name = if self.peek().kind == TokenKind::Ident {
-            Some(self.advance().text.clone())
+    fn struct_or_tuple(&mut self, start: usize, name: Option<String>) -> Result<Value> {
+        if self.check2(TokenKind::Ident) && self.check3(TokenKind::Colon) {
+            self.structure(start, name)
         } else {
-            None
-        };
+            self.tuple(start)
+        }
+    }
 
+    fn structure(&mut self, start: usize, name: Option<String>) -> Result<Value> {
         if !self.consume(TokenKind::LeftParen) {
             return Err(Report::build(ReportKind::Error, (), self.peek().span.start)
                 .with_message(format!("Unexpected token `{}`", self.peek().kind))
@@ -134,8 +139,37 @@ impl Parser {
         Ok(Value::Struct(Struct { name, fields }))
     }
 
-    fn struct_or_tuple(&self) -> Result<Value> {
-        todo!()
+    fn tuple(&mut self, start: usize) -> Result<Value> {
+        if !self.consume(TokenKind::LeftParen) {
+            return Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+                .with_message(format!("Unexpected token `{}`", self.peek().kind))
+                .with_label(
+                    Label::new(self.peek().span.start..self.peek().span.end)
+                        .with_message(format!("Expected `(`, found `{}`", self.peek().text)),
+                )
+                .with_label(
+                    Label::new(start..self.peek().span.start).with_message("Tuple started here"),
+                )
+                .with_note("Expected `(` at start of tuple"));
+        }
+        let mut values = Vec::new();
+        loop {
+            if self.peek().kind == TokenKind::RightParen {
+                break;
+            }
+            values.push(self.value());
+            if !self.consume(TokenKind::Comma) {
+                break;
+            }
+        }
+
+        self.require(TokenKind::RightParen)?;
+
+        if values.is_empty() {
+            Ok(Value::Unit)
+        } else {
+            Ok(Value::Tuple(values))
+        }
     }
 
     fn map(&mut self) -> Result<Value> {
@@ -213,6 +247,10 @@ impl Parser {
 
     fn check2(&self, kind: TokenKind) -> bool {
         self.current + 1 < self.tokens.len() && self.tokens[self.current + 1].kind == kind
+    }
+
+    fn check3(&self, kind: TokenKind) -> bool {
+        self.current + 2 < self.tokens.len() && self.tokens[self.current + 2].kind == kind
     }
 
     fn peek(&self) -> &Token {
