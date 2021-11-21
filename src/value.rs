@@ -128,14 +128,16 @@ pub enum Number {
 #[derive(Clone, Debug, Default)]
 pub struct Struct {
     pub name: Option<String>,
+    pub prototype: Option<String>,
     pub fields: StructInner,
 }
 
 impl Struct {
     /// Creates a new, empty `Struct`.
-    pub fn new(name: Option<String>) -> Struct {
+    pub fn new(name: Option<String>, prototype: Option<String>) -> Struct {
         Struct {
             name,
+            prototype,
             fields: Default::default(),
         }
     }
@@ -194,6 +196,7 @@ impl FromIterator<(String, Value)> for Struct {
         Struct {
             name: None,
             fields: StructInner::from_iter(iter),
+            prototype: None,
         }
     }
 }
@@ -432,5 +435,6 @@ pub enum Value {
     String(String),
     Seq(Vec<Value>),
     Tuple(Vec<Value>),
+    Include(String),
     Unit,
 }

@@ -180,7 +180,11 @@ impl Parser {
                 .with_note("Expected `)` at end of struct"));
         }
 
-        Ok(Value::Struct(Struct { name, fields }))
+        Ok(Value::Struct(Struct {
+            name,
+            fields,
+            prototype: None,
+        }))
     }
 
     fn tuple(&mut self, start: usize) -> Result<Value> {

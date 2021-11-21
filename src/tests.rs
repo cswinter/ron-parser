@@ -15,6 +15,7 @@ fn test_simple_struct() {
     let expected = Value::Struct(Struct {
         name: Some("Config".to_string()),
         fields: indexmap! {"version".to_string() => Value::Number(Number::Integer(1))},
+        prototype: None,
     });
     test_parse(SIMPLE_STRUCT, expected);
 }
@@ -115,6 +116,7 @@ fn test_struct_with_all_types() {
                             Value::Bool(true),
                         ]),
                     },
+                    prototype:None,
                 }) => Value::String("bar".to_string()),
             })),
             "tuple".to_string() => Value::Tuple(vec![
@@ -125,6 +127,7 @@ fn test_struct_with_all_types() {
             "empty".to_string() => Value::Unit,
             "none".to_string() => Value::Option(None),
         },
+        prototype: None,
     });
     test_parse(STRUCT_WITH_ALL_TYPES, expected);
 }
@@ -165,6 +168,27 @@ fn test_missing_closing_bracket() {
     expect_error(MISSING_CLOSING_BRACKET, MISSING_CLOSING_BRACKET_ERROR);
 }
 
+static INCLUDE: &str = r#"
+GoblinWizard(
+    #prototype("goblin.ron"),
+    name: "Goblin Wizard",
+    spells: #include("spells.ron"),
+)
+"#;
+
+#[test]
+fn test_include() {
+    let expected = Value::Struct(Struct {
+        name: Some("GoblinWizard".to_string()),
+        prototype: Some("goblin.ron".to_string()),
+        fields: indexmap! {
+            "name".to_string() => Value::String("Goblin Wizard".to_string()),
+            "spells".to_string() => Value::Include("spells.ron".to_string()),
+        },
+    });
+    test_parse_with_incudes(INCLUDE, expected);
+}
+
 #[test]
 fn test_struct() {
     test_parse(
@@ -175,6 +199,7 @@ fn test_struct() {
                 "x".to_string() => Value::Number(Number::Integer(4)),
                 "y".to_string() => Value::Number(Number::Integer(7)),
             },
+            prototype: None,
         }),
     );
     test_parse(
@@ -185,6 +210,7 @@ fn test_struct() {
                 "x".to_string() => Value::Number(Number::Integer(4)),
                 "y".to_string() => Value::Number(Number::Integer(7)),
             },
+            prototype: None,
         }),
     );
     test_parse(
@@ -195,10 +221,13 @@ fn test_struct() {
         "(33)",
         Value::Tuple(vec![Value::Number(Number::Integer(33))]),
     );
-    test_parse("TupleStruct(2,5,)", Value::Tuple(vec![
-        Value::Number(Number::Integer(2)),
-        Value::Number(Number::Integer(5)),
-    ]));
+    test_parse(
+        "TupleStruct(2,5,)",
+        Value::Tuple(vec![
+            Value::Number(Number::Integer(2)),
+            Value::Number(Number::Integer(5)),
+        ]),
+    );
 }
 
 fn expect_error(input: &str, error: &str) {
@@ -225,6 +254,20 @@ fn expect_error(input: &str, error: &str) {
 }
 
 fn test_parse(input: &str, expected: Value) {
+    let parser = Parser::new(input);
+    let _tokens = parser.tokens.clone();
+    let (val, errors) = parser.parse();
+    if !errors.is_empty() {
+        // println!("{:#?}", _tokens);
+        for error in errors {
+            error.finish().print(Source::from(input)).unwrap();
+        }
+        panic!("Expected no errors");
+    }
+    assert_eq!(val, expected);
+}
+
+fn test_parse_with_incudes(input: &str, expected: Value) {
     let parser = Parser::new(input);
     let _tokens = parser.tokens.clone();
     let (val, errors) = parser.parse();
