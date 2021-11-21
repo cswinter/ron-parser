@@ -82,6 +82,7 @@ impl<'a> Lexer<'a> {
                 ']' => TokenKind::RightBracket,
                 ':' => TokenKind::Colon,
                 ',' => TokenKind::Comma,
+                '#' => TokenKind::Hash,
                 '/' if self.consume('/') => {
                     while self.peek().is_some() && self.peek() != Some('\n') {
                         self.advance();

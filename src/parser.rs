@@ -77,50 +77,15 @@ impl Parser {
                     },
                 }
             }
-            TokenKind::String => {
-                // TODO: unicode escapes, 7bit character codes
-                let mut string = String::new();
-                let mut escaped = false;
-                let text = self.advance().text.clone();
-                for (i, char) in text[1..text.len() - 1].chars().enumerate() {
-                    if escaped {
-                        match char {
-                            'n' => string.push('\n'),
-                            'r' => string.push('\r'),
-                            't' => string.push('\t'),
-                            '\\' => string.push('\\'),
-                            '"' => string.push('"'),
-                            '0' => string.push('\0'),
-                            _ => {
-                                self.errors.push(
-                                    Report::build(
-                                        ReportKind::Error,
-                                        (),
-                                        self.peek().span.start + i - 1,
-                                    )
-                                    .with_message(format!("unknown character escape: `\\{}`", char))
-                                    .with_label(
-                                        Label::new(
-                                            self.peek().span.start + i - 1
-                                                ..self.peek().span.start + i,
-                                        )
-                                        .with_message(""),
-                                    )
-                                    .with_note("Valid escape sequences are: `\\n`, `\\r`, `\\t`, `\\\"`, `\\0`"),
-                                );
-                            }
-                        }
-                        escaped = false;
-                    } else if char == '\\' {
-                        escaped = true;
-                    } else {
-                        string.push(char);
-                    }
-                }
-                Ok(Value::String(string))
-            }
-            TokenKind::Eof => todo!(),
-            _ => todo!(),
+            TokenKind::String => self.string().map(Value::String),
+            TokenKind::Hash => self.include(),
+            token => Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+                .with_message("Expected one of `\"`, `[`, `{`, `(`, `true`, `false`, `None`, <ident>, <number>")
+                .with_label(
+                    Label::new(self.peek().span.start..self.peek().span.end)
+                        .with_message(format!("Unexpected token `{}` at start of value.", token)),
+                )
+        ),
         };
         match val {
             Ok(val) => val,
@@ -132,7 +97,11 @@ impl Parser {
     }
 
     fn struct_or_tuple(&mut self, start: usize, name: Option<String>) -> Result<Value> {
-        if self.check2(TokenKind::Ident) && self.check3(TokenKind::Colon) {
+        if (self.check2(TokenKind::Ident) && self.check3(TokenKind::Colon))
+            || (self.check2(TokenKind::Hash)
+                && self.check3(TokenKind::Ident)
+                && self.check_text3("prototype"))
+        {
             self.structure(start, name)
         } else {
             self.tuple(start)
@@ -154,12 +123,32 @@ impl Parser {
         }
 
         let mut fields = IndexMap::default();
-
+        let mut prototype = None;
         loop {
-            let field_name = self.require(TokenKind::Ident)?.text.clone();
-            self.require(TokenKind::Colon)?;
-            let value = self.value();
-            fields.insert(field_name, value);
+            if self.consume(TokenKind::Hash) {
+                let text = self.ident()?;
+                if text != "prototype" {
+                    return Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+                        .with_message(format!("Unexpected token `{}`", self.peek().kind))
+                        .with_label(
+                            Label::new(self.peek().span.start..self.peek().span.end).with_message(
+                                format!(
+                                    "Expected `prototype` after `#` in struct, found `{}`",
+                                    text
+                                ),
+                            ),
+                        ));
+                }
+                self.require(TokenKind::LeftParen)?;
+                let path = self.string()?;
+                self.require(TokenKind::RightParen)?;
+                prototype = Some(path);
+            } else {
+                let field_name = self.require(TokenKind::Ident)?.text.clone();
+                self.require(TokenKind::Colon)?;
+                let value = self.value();
+                fields.insert(field_name, value);
+            }
             if !self.consume(TokenKind::Comma) {
                 break;
             }
@@ -183,7 +172,7 @@ impl Parser {
         Ok(Value::Struct(Struct {
             name,
             fields,
-            prototype: None,
+            prototype,
         }))
     }
 
@@ -285,12 +274,86 @@ impl Parser {
         Ok(Value::Seq(values))
     }
 
+    fn include(&mut self) -> Result<Value> {
+        let start = self.pos();
+        self.require(TokenKind::Hash)?;
+        match self.ident()?.as_ref() {
+            "include" => {
+                self.require(TokenKind::LeftParen)?;
+                let path = self.string()?;
+                self.require(TokenKind::RightParen)?;
+                Ok(Value::Include(path))
+            }
+            "prototype" => Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+                .with_message("Unexpected #prototype directive")
+                .with_label(Label::new(start..self.peek().span.end).with_message(
+                    "Expected value but found `#prototype`. Only structs can have prototypes.",
+                ))),
+            ident => Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+                .with_message(format!(
+                    "Unknown directive `#{}`. Valid directives are `include` and `prototype`.",
+                    ident
+                ))
+                .with_label(
+                    Label::new(self.peek().span.start..self.peek().span.end).with_message(""),
+                )),
+        }
+    }
+
+    fn string(&mut self) -> Result<String> {
+        // TODO: unicode escapes, 7bit character codes
+        self.consume(TokenKind::String);
+        let mut string = String::new();
+        let mut escaped = false;
+        let text = self.previous().text.clone();
+        for (i, char) in text[1..text.len() - 1].chars().enumerate() {
+            if escaped {
+                match char {
+                    'n' => string.push('\n'),
+                    'r' => string.push('\r'),
+                    't' => string.push('\t'),
+                    '\\' => string.push('\\'),
+                    '"' => string.push('"'),
+                    '0' => string.push('\0'),
+                    _ => {
+                        self.errors.push(
+                                    Report::build(
+                                        ReportKind::Error,
+                                        (),
+                                        self.peek().span.start + i - 1,
+                                    )
+                                    .with_message(format!("unknown character escape: `\\{}`", char))
+                                    .with_label(
+                                        Label::new(
+                                            self.peek().span.start + i - 1
+                                                ..self.peek().span.start + i,
+                                        )
+                                        .with_message(""),
+                                    )
+                                    .with_note("Valid escape sequences are: `\\n`, `\\r`, `\\t`, `\\\"`, `\\0`"),
+                                );
+                    }
+                }
+                escaped = false;
+            } else if char == '\\' {
+                escaped = true;
+            } else {
+                string.push(char);
+            }
+        }
+        Ok(string)
+    }
+
     fn check2(&self, kind: TokenKind) -> bool {
         self.current + 1 < self.tokens.len() && self.tokens[self.current + 1].kind == kind
     }
 
     fn check3(&self, kind: TokenKind) -> bool {
         self.current + 2 < self.tokens.len() && self.tokens[self.current + 2].kind == kind
+    }
+
+    fn check_text3(&self, text: &str) -> bool {
+        self.current + 2 < self.tokens.len() && self.tokens[self.current + 2].text == text
     }
 
     fn peek(&self) -> &Token {
@@ -322,6 +385,19 @@ impl Parser {
                         token,
                         self.peek().kind
                     )),
+                ))
+        }
+    }
+
+    fn ident(&mut self) -> Result<String> {
+        if self.peek().kind == TokenKind::Ident {
+            Ok(self.advance().text.clone())
+        } else {
+            Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+                .with_message("Unexpected token".to_string())
+                .with_label(
+                    Label::new(self.peek().span.start..self.peek().span.end)
+                        .with_message(format!("Expected identifier, found {}", self.peek().kind,)),
                 ))
         }
     }

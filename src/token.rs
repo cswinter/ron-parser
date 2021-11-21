@@ -24,6 +24,7 @@ pub enum TokenKind {
 
     Comma,
     Colon,
+    Hash,
 
     Comment,
     Whitespace,
@@ -50,6 +51,7 @@ impl TokenKind {
             TokenKind::RightBracket => "]",
             TokenKind::Comma => ",",
             TokenKind::Colon => ":",
+            TokenKind::Hash => "#",
             TokenKind::Comment => "<COMMENT>",
             TokenKind::Whitespace => "\\s",
             TokenKind::Newline => "\\n",
