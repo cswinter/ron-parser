@@ -10,3 +10,11 @@ strum_macros = "0.22"
 ariadne = "0.1"
 indexmap = "1.7"
 maplit = "1.0"
+
+[lib]
+name = "ron_parser"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ron-parser"
+path = "src/bin/main.rs"

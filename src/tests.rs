@@ -1,8 +1,8 @@
 use ariadne::{Config, Source};
 use indexmap::indexmap;
 
+use crate::parser::Parser;
 use crate::value::{Map, Number, Struct, Value};
-use crate::Parser;
 
 static SIMPLE_STRUCT: &str = r#"
 Config(
