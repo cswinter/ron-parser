@@ -438,3 +438,56 @@ pub enum Value {
     Include(String),
     Unit,
 }
+
+impl Value {
+    pub fn fmt_as_rust(&self) -> String {
+        match self {
+            Value::Bool(b) => format!("Value::Bool({})", b),
+            Value::Char(c) => format!("Value::Char({})", c),
+            Value::Map(m) => format!(
+                "Value::Map(Map(indexmap!{{{}}}))",
+                m.0.iter()
+                    .map(|(k, v)| format!("{} => {}", k.fmt_as_rust(), v.fmt_as_rust()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Value::Struct(s) => format!(
+                "Value::Struct(Struct{{prototype:{}, name:{}, fields: indexmap!{{{}}} }})",
+                match &s.prototype {
+                    None => "None".to_string(),
+                    Some(p) => format!("Some(\"{}\".to_string())", p),
+                },
+                match &s.name {
+                    None => "None".to_string(),
+                    Some(n) => format!("Some(\"{}\".to_string())", n),
+                },
+                s.fields
+                    .iter()
+                    .map(|(k, v)| format!("\"{}\".to_string() => {}", k, v.fmt_as_rust()))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            ),
+            Value::Number(Number::Float(f)) => format!("Value::Number(Number::from({}))", f.0),
+            Value::Number(Number::Integer(i)) => format!("Value::Number(Number::from({}))", i),
+            Value::Option(None) => "Value::Option(None)".to_string(),
+            Value::Option(Some(v)) => format!("Value::Option(Some({}))", v.fmt_as_rust()),
+            Value::String(s) => format!("Value::String(\"{}\".to_string())", s),
+            Value::Seq(s) => format!(
+                "Value::Seq(vec![{}])",
+                s.iter()
+                    .map(|v| v.fmt_as_rust())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Value::Tuple(t) => format!(
+                "Value::Tuple(vec![{}])",
+                t.iter()
+                    .map(|v| v.fmt_as_rust())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Value::Include(s) => format!("Value::Include(\"{}\".to_string())", s),
+            Value::Unit => "Value::Unit".to_string(),
+        }
+    }
+}

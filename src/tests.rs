@@ -186,7 +186,91 @@ fn test_include() {
             "spells".to_string() => Value::Include("spells.ron".to_string()),
         },
     });
-    test_parse_with_incudes(INCLUDE, expected);
+    test_parse_with_includes(INCLUDE, expected);
+}
+
+static LARGE: &str = r#"
+XpV0(
+    project: "dcc",
+    containers: {
+        "trainer": (
+            command: ["python", "main.py"],
+            env_secrets: {
+                "WANDB_API_KEY": "wandb-api-key",
+            },
+            replicas: 1,
+            gpu: 1,
+            gpu_mem: "5GB",
+            volumes: {
+                "/mnt/a/Dropbox/artifacts/xprun": "/mnt/xprun",
+            },
+            build: [
+                From("nvcr.io/nvidia/pytorch:21.03-py3"),
+
+                // install rust toolchain
+                Run("apt-get update"),
+                Run("apt-get install curl build-essential --yes"),
+                Run("curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"),
+                Env("PATH", "/root/.cargo/bin:${PATH}"),
+                Run("pip install --upgrade pip"),
+                Run("pip install maturin"),
+
+                // build xprun from source
+                Repo(url: "git@github.com:cswinter/xprun.git", rev: "eb59b24", cd: true),
+                Run("maturin build --cargo-extra-args=--features=python"),
+                Run("pip install target/wheels/xprun-0.1.0-cp38-cp38-manylinux_2_27_x86_64.whl"),
+
+                // build pyron from source
+                Repo(url: "git@github.com:cswinter/pyron.git", rev: "23825de", cd: true),
+                Run("maturin build"),
+                Run("pip install target/wheels/pyron-0.1.0-cp38-cp38-manylinux_2_24_x86_64.whl"),
+
+                Repo(path: "requirements.txt", cd: true, rm: true),
+                Run("pip install -r requirements.txt"),
+
+                Repo(url: "git@github.com:cswinter/hyperstate.git", rev: "77893bf", cd: true),
+                Run("pip install -e ."),
+
+                Repo(cd: true),
+            ],
+        ),
+        "codecraftserver": (
+            command: ["server-0.1.0-SNAPSHOT/bin/server", "-Dplay.http.secret.key=ad31779d4ee49d5ad5162bf1429c32e2e9933f3b"],
+            cpu: 4,
+            cpu_mem: "20GiB",
+            tty: true,
+            env: {
+                "SBT_OPTS": "-Xmx10G",
+            },
+            build: [
+                From("hseeberger/scala-sbt:8u222_1.3.5_2.13.1"),
+
+                // build fixed versions of CodeCraftGame and CodeCraftServer as a straightforward way to download sbt 0.13.16 and populate dependency cache
+                Repo(url: "https://github.com/cswinter/CodeCraftGame.git", rev: "92304eb", cd: true, rm: true),
+                Run("sbt publishLocal"),
+                Repo(url: "https://github.com/cswinter/CodeCraftServer.git", rev: "df76892", cd: true, rm: true),
+                Run("sbt compile"),
+
+                // build CodeCraftGame and CodeCraftServer from source
+                Repo(url: "https://github.com/cswinter/CodeCraftGame.git", rev: "edc5a9f2", cd: true),
+                Run("sbt publishLocal"),
+                Repo(url: "https://github.com/cswinter/CodeCraftServer.git", rev: "302a379", cd: true),
+                Run("sbt dist"),
+                Run("unzip server/target/universal/server-0.1.0-SNAPSHOT.zip"),
+            ],
+        ),
+    }
+)
+"#;
+
+#[test]
+fn test_large() {
+    let large_expected = Value::Struct(Struct {
+        prototype: None,
+        name: Some("XpV0".to_string()),
+        fields: indexmap! {"project".to_string() => Value::String("dcc".to_string()), "containers".to_string() => Value::Map(Map(indexmap!{Value::String("trainer".to_string()) => Value::Struct(Struct{prototype:None, name:None, fields: indexmap!{"command".to_string() => Value::Seq(vec![Value::String("python".to_string()), Value::String("main.py".to_string())]), "env_secrets".to_string() => Value::Map(Map(indexmap!{Value::String("WANDB_API_KEY".to_string()) => Value::String("wandb-api-key".to_string())})), "replicas".to_string() => Value::Number(Number::from(1)), "gpu".to_string() => Value::Number(Number::from(1)), "gpu_mem".to_string() => Value::String("5GB".to_string()), "volumes".to_string() => Value::Map(Map(indexmap!{Value::String("/mnt/a/Dropbox/artifacts/xprun".to_string()) => Value::String("/mnt/xprun".to_string())})), "build".to_string() => Value::Seq(vec![Value::Tuple(vec![Value::String("nvcr.io/nvidia/pytorch:21.03-py3".to_string())]), Value::Tuple(vec![Value::String("apt-get update".to_string())]), Value::Tuple(vec![Value::String("apt-get install curl build-essential --yes".to_string())]), Value::Tuple(vec![Value::String("curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y".to_string())]), Value::Tuple(vec![Value::String("PATH".to_string()), Value::String("/root/.cargo/bin:${PATH}".to_string())]), Value::Tuple(vec![Value::String("pip install --upgrade pip".to_string())]), Value::Tuple(vec![Value::String("pip install maturin".to_string())]), Value::Struct(Struct{prototype:None, name:Some("Repo".to_string()), fields: indexmap!{"url".to_string() => Value::String("git@github.com:cswinter/xprun.git".to_string()), "rev".to_string() => Value::String("eb59b24".to_string()), "cd".to_string() => Value::Bool(true)} }), Value::Tuple(vec![Value::String("maturin build --cargo-extra-args=--features=python".to_string())]), Value::Tuple(vec![Value::String("pip install target/wheels/xprun-0.1.0-cp38-cp38-manylinux_2_27_x86_64.whl".to_string())]), Value::Struct(Struct{prototype:None, name:Some("Repo".to_string()), fields: indexmap!{"url".to_string() => Value::String("git@github.com:cswinter/pyron.git".to_string()), "rev".to_string() => Value::String("23825de".to_string()), "cd".to_string() => Value::Bool(true)} }), Value::Tuple(vec![Value::String("maturin build".to_string())]), Value::Tuple(vec![Value::String("pip install target/wheels/pyron-0.1.0-cp38-cp38-manylinux_2_24_x86_64.whl".to_string())]), Value::Struct(Struct{prototype:None, name:Some("Repo".to_string()), fields: indexmap!{"path".to_string() => Value::String("requirements.txt".to_string()), "cd".to_string() => Value::Bool(true), "rm".to_string() => Value::Bool(true)} }), Value::Tuple(vec![Value::String("pip install -r requirements.txt".to_string())]), Value::Struct(Struct{prototype:None, name:Some("Repo".to_string()), fields: indexmap!{"url".to_string() => Value::String("git@github.com:cswinter/hyperstate.git".to_string()), "rev".to_string() => Value::String("77893bf".to_string()), "cd".to_string() => Value::Bool(true)} }), Value::Tuple(vec![Value::String("pip install -e .".to_string())]), Value::Struct(Struct{prototype:None, name:Some("Repo".to_string()), fields: indexmap!{"cd".to_string() => Value::Bool(true)} })])} }), Value::String("codecraftserver".to_string()) => Value::Struct(Struct{prototype:None, name:None, fields: indexmap!{"command".to_string() => Value::Seq(vec![Value::String("server-0.1.0-SNAPSHOT/bin/server".to_string()), Value::String("-Dplay.http.secret.key=ad31779d4ee49d5ad5162bf1429c32e2e9933f3b".to_string())]), "cpu".to_string() => Value::Number(Number::from(4)), "cpu_mem".to_string() => Value::String("20GiB".to_string()), "tty".to_string() => Value::Bool(true), "env".to_string() => Value::Map(Map(indexmap!{Value::String("SBT_OPTS".to_string()) => Value::String("-Xmx10G".to_string())})), "build".to_string() => Value::Seq(vec![Value::Tuple(vec![Value::String("hseeberger/scala-sbt:8u222_1.3.5_2.13.1".to_string())]), Value::Struct(Struct{prototype:None, name:Some("Repo".to_string()), fields: indexmap!{"url".to_string() => Value::String("https://github.com/cswinter/CodeCraftGame.git".to_string()), "rev".to_string() => Value::String("92304eb".to_string()), "cd".to_string() => Value::Bool(true), "rm".to_string() => Value::Bool(true)} }), Value::Tuple(vec![Value::String("sbt publishLocal".to_string())]), Value::Struct(Struct{prototype:None, name:Some("Repo".to_string()), fields: indexmap!{"url".to_string() => Value::String("https://github.com/cswinter/CodeCraftServer.git".to_string()), "rev".to_string() => Value::String("df76892".to_string()), "cd".to_string() => Value::Bool(true), "rm".to_string() => Value::Bool(true)} }), Value::Tuple(vec![Value::String("sbt compile".to_string())]), Value::Struct(Struct{prototype:None, name:Some("Repo".to_string()), fields: indexmap!{"url".to_string() => Value::String("https://github.com/cswinter/CodeCraftGame.git".to_string()), "rev".to_string() => Value::String("edc5a9f2".to_string()), "cd".to_string() => Value::Bool(true)} }), Value::Tuple(vec![Value::String("sbt publishLocal".to_string())]), Value::Struct(Struct{prototype:None, name:Some("Repo".to_string()), fields: indexmap!{"url".to_string() => Value::String("https://github.com/cswinter/CodeCraftServer.git".to_string()), "rev".to_string() => Value::String("302a379".to_string()), "cd".to_string() => Value::Bool(true)} }), Value::Tuple(vec![Value::String("sbt dist".to_string())]), Value::Tuple(vec![Value::String("unzip server/target/universal/server-0.1.0-SNAPSHOT.zip".to_string())])])} })}))},
+    });
+    test_parse(LARGE, large_expected);
 }
 
 #[test]
@@ -258,16 +342,18 @@ fn test_parse(input: &str, expected: Value) {
     let _tokens = parser.tokens.clone();
     let (val, errors) = parser.parse();
     if !errors.is_empty() {
-        // println!("{:#?}", _tokens);
         for error in errors {
             error.finish().print(Source::from(input)).unwrap();
         }
         panic!("Expected no errors");
     }
+    if val != expected {
+        println!("{}", val.fmt_as_rust());
+    }
     assert_eq!(val, expected);
 }
 
-fn test_parse_with_incudes(input: &str, expected: Value) {
+fn test_parse_with_includes(input: &str, expected: Value) {
     let parser = Parser::new(input);
     let _tokens = parser.tokens.clone();
     let (val, errors) = parser.parse();

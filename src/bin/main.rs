@@ -11,9 +11,9 @@ fn main() {
         };
 
         match parse(&input) {
-            Ok(val) => println!("{:?}", val),
+            Ok(val) => println!("{}", val.fmt_as_rust()),
             Err(err) => {
-                println!("{:?}", err.partial_parse);
+                println!("{}", err.partial_parse.fmt_as_rust());
                 err.emit();
             }
         }
