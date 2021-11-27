@@ -7,18 +7,23 @@ use ariadne::{Label, Report, ReportBuilder, ReportKind};
 
 use crate::token::{Span, Token, TokenKind};
 
+type RB = ReportBuilder<(String, Range<usize>)>;
+type Result<T> = std::result::Result<T, ReportBuilder<(String, Range<usize>)>>;
+
 pub struct Lexer<'a> {
     source: Peekable<Chars<'a>>,
     tokens: Vec<Token>,
-    errors: Vec<ReportBuilder<Range<usize>>>,
+    errors: Vec<ReportBuilder<(String, Range<usize>)>>,
     chars: Vec<char>,
 
     start: usize,
     current: usize,
+
+    source_name: &'a str,
 }
 
 impl<'a> Lexer<'a> {
-    pub fn new(source: &str) -> Lexer {
+    pub fn new(source: &'a str, source_name: &'a str) -> Lexer<'a> {
         Lexer {
             source: source.chars().peekable(),
 
@@ -28,10 +33,12 @@ impl<'a> Lexer<'a> {
 
             start: 0,
             current: 0,
+
+            source_name,
         }
     }
 
-    pub fn scan(mut self) -> (Vec<Token>, Vec<ReportBuilder<Range<usize>>>) {
+    pub fn scan(mut self) -> (Vec<Token>, Vec<RB>) {
         loop {
             match self.scan_token() {
                 Ok(TokenKind::Whitespace) | Ok(TokenKind::Comment) | Ok(TokenKind::Newline) => {}
@@ -70,7 +77,7 @@ impl<'a> Lexer<'a> {
         (self.tokens, self.errors)
     }
 
-    fn scan_token(&mut self) -> Result<TokenKind, ReportBuilder<Range<usize>>> {
+    fn scan_token(&mut self) -> Result<TokenKind> {
         let token = match self.advance() {
             None => TokenKind::Eof,
             Some(c) => match c {
@@ -112,9 +119,13 @@ impl<'a> Lexer<'a> {
                     TokenKind::Ident
                 }
                 t => {
-                    return Err(Report::build(ReportKind::Error, (), self.current)
+                    return Err(self
+                        .report(ReportKind::Error)
                         .with_message(format!("Unexpected character `{}`", t))
-                        .with_label(Label::new(self.current - 1..self.current)));
+                        .with_label(Label::new((
+                            self.source_name.to_string(),
+                            self.current - 1..self.current,
+                        ))));
                 }
             },
         };
@@ -170,6 +181,10 @@ impl<'a> Lexer<'a> {
     fn peek(&mut self) -> Option<char> {
         self.source.peek().cloned()
     }
+
+    fn report(&self, kind: ReportKind) -> ReportBuilder<(String, Range<usize>)> {
+        Report::build(kind, self.source_name.to_string(), self.current)
+    }
 }
 
 pub struct TokenStream<'a>(pub &'a [Token]);
@@ -195,6 +210,7 @@ mod tests {
 Config(
     version: 1,
 )"#,
+            "<unknown>",
         );
         let (tokens, errs) = lexer.scan();
         assert_eq!(errs.len(), 0);

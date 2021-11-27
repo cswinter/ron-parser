@@ -1,4 +1,4 @@
-use ariadne::{Config, Source};
+use ariadne::Config;
 use indexmap::indexmap;
 
 use crate::parser::Parser;
@@ -31,8 +31,8 @@ static INVALID_STRUCT_ERROR: &str = r#"Error: Unexpected token `)`
    ╭─[<unknown>:5:1]
    │
  4 │     foo: bar
-   ·          ──┬─  
-   ·            ╰─── Tuple begins here
+   ·          │ 
+   ·          ╰─ Tuple begins here
  5 │ )
    · ┬  
    · ╰── Expected `(`, found `)`
@@ -56,15 +56,14 @@ Config(
 static INVALID_STRUCT_2_ERROR: &str = r#"Error: Unexpected token `(`
    ╭─[<unknown>:5:1]
    │
- 2 │ ╭─▶ Config(
- 4 │ ├─▶     foo: 4
-   · │                
-   · ╰──────────────── Struct begins here
- 5 │     (
-   ·     ┬  
-   ·     ╰── Expected `)`, found `(`
-   · │   
-   · │   Note: Expected `)` at end of struct
+ 2 │ Config(
+   · │ 
+   · ╰─ Struct begins here
+ 5 │ (
+   · ┬  
+   · ╰── Expected `)`, found `(`
+   · 
+   · Note: Expected `)` at end of struct
 ───╯
 "#;
 
@@ -158,6 +157,9 @@ static MISSING_CLOSING_BRACKET: &str = r#"
 static MISSING_CLOSING_BRACKET_ERROR: &str = r#"Error: Unexpected token `<EOF>`
    ╭─[<unknown>:4:10]
    │
+ 2 │ [
+   · │ 
+   · ╰─ List begins here
    · 
    · Note: Expected `]` at end of list
 ───╯
@@ -315,7 +317,7 @@ fn test_struct() {
 }
 
 fn expect_error(input: &str, error: &str) {
-    let parser = Parser::new(input);
+    let parser = Parser::new(input, "<unknown>");
     let (val, errors) = parser.parse();
     if errors.is_empty() {
         panic!("Expected error, got {:?}", val);
@@ -324,11 +326,21 @@ fn expect_error(input: &str, error: &str) {
         for rb in errors {
             let report = rb.with_config(Config::default().with_color(false)).finish();
             let mut err = vec![];
-            report.write(Source::from(input), &mut err).unwrap();
+            report
+                .write(
+                    ariadne::sources(vec![("<unknown>".to_string(), input.to_string())]),
+                    &mut err,
+                )
+                .unwrap();
             let err = String::from_utf8(err).unwrap();
             if first {
                 if err != error {
-                    report.print(Source::from(input)).unwrap();
+                    report
+                        .print(ariadne::sources(vec![(
+                            "<unknown>".to_string(),
+                            input.to_string(),
+                        )]))
+                        .unwrap();
                 }
                 assert_eq!(err, error);
                 first = false;
@@ -338,12 +350,18 @@ fn expect_error(input: &str, error: &str) {
 }
 
 fn test_parse(input: &str, expected: Value) {
-    let parser = Parser::new(input);
+    let parser = Parser::new(input, "<unknown>");
     let _tokens = parser.tokens.clone();
     let (val, errors) = parser.parse();
     if !errors.is_empty() {
         for error in errors {
-            error.finish().print(Source::from(input)).unwrap();
+            error
+                .finish()
+                .print(ariadne::sources(vec![(
+                    "<unknown>".to_string(),
+                    input.to_string(),
+                )]))
+                .unwrap();
         }
         panic!("Expected no errors");
     }
@@ -354,13 +372,19 @@ fn test_parse(input: &str, expected: Value) {
 }
 
 fn test_parse_with_includes(input: &str, expected: Value) {
-    let parser = Parser::new(input);
+    let parser = Parser::new(input, "<unknown>");
     let _tokens = parser.tokens.clone();
     let (val, errors) = parser.parse();
     if !errors.is_empty() {
         // println!("{:#?}", _tokens);
         for error in errors {
-            error.finish().print(Source::from(input)).unwrap();
+            error
+                .finish()
+                .print(ariadne::sources(vec![(
+                    "<unknown>".to_string(),
+                    input.to_string(),
+                )]))
+                .unwrap();
         }
         panic!("Expected no errors");
     }

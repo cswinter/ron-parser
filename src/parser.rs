@@ -7,31 +7,36 @@ use crate::token::{Token, TokenKind};
 use crate::value::{Map, Number, Struct, Value};
 use crate::Lexer;
 
-type Result<T> = std::result::Result<T, ReportBuilder<Range<usize>>>;
+type RB = ReportBuilder<(String, Range<usize>)>;
+type Result<T> = std::result::Result<T, ReportBuilder<(String, Range<usize>)>>;
 
 pub struct Parser {
     pub(crate) tokens: Vec<Token>,
     current: usize,
-    errors: Vec<ReportBuilder<Range<usize>>>,
+    errors: Vec<ReportBuilder<(String, Range<usize>)>>,
+    source_path: String,
 }
 
 impl Parser {
-    pub fn new(source: &str) -> Parser {
-        let (tokens, errors) = Lexer::new(source).scan();
+    pub fn new(source: &str, source_path: &str) -> Parser {
+        let (tokens, errors) = Lexer::new(source, source_path).scan();
         Parser {
             tokens,
             current: 0,
             errors,
+            source_path: source_path.to_string(),
         }
     }
 
-    pub fn parse(mut self) -> (Value, Vec<ReportBuilder<Range<usize>>>) {
+    pub fn parse(mut self) -> (Value, Vec<RB>) {
         let value = self.value();
         if !self.is_at_end() {
             self.errors.push(
-                Report::build(ReportKind::Error, (), self.pos())
+                Report::build(ReportKind::Error, "asdf".to_string(), self.pos())
                     .with_message("Expected end of input.")
-                    .with_label(Label::new(self.pos()..self.pos()).with_message("")),
+                    .with_label(
+                        Label::new(("asdf".to_string(), self.pos()..self.pos())).with_message(""),
+                    ),
             );
         }
         (value, self.errors)
@@ -66,10 +71,10 @@ impl Parser {
                     Err(_) => match text.parse::<f64>() {
                         Ok(float) => Ok(Value::Number(Number::from(float))),
                         Err(err) => {
-                            Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+                            Err(self.error()
                                 .with_message(format!("Malformed number `{}`", text))
                                 .with_label(
-                                    Label::new(self.peek().span.start..self.peek().span.end)
+                                    self.label()
                                         .with_message(""),
                                 )
                                 .with_note(format!("Failed to parse number: {}", err)))
@@ -79,10 +84,10 @@ impl Parser {
             }
             TokenKind::String => self.string().map(Value::String),
             TokenKind::Hash => self.include(),
-            token => Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+            token => Err(self.error()
                 .with_message("Expected one of `\"`, `[`, `{`, `(`, `true`, `false`, `None`, <ident>, <number>")
                 .with_label(
-                    Label::new(self.peek().span.start..self.peek().span.end)
+                    self.label()
                         .with_message(format!("Unexpected token `{}` at start of value.", token)),
                 )
         ),
@@ -110,14 +115,16 @@ impl Parser {
 
     fn structure(&mut self, start: usize, name: Option<String>) -> Result<Value> {
         if !self.consume(TokenKind::LeftParen) {
-            return Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+            return Err(self
+                .error()
                 .with_message(format!("Unexpected token `{}`", self.peek().kind))
                 .with_label(
-                    Label::new(self.peek().span.start..self.peek().span.end)
+                    self.label()
                         .with_message(format!("Expected `(`, found `{}`", self.peek().text)),
                 )
                 .with_label(
-                    Label::new(start..self.peek().span.start).with_message("Struct begins here"),
+                    self.label_span(start..start)
+                        .with_message("Struct begins here"),
                 )
                 .with_note("Expected `(` at start of struct"));
         }
@@ -128,16 +135,13 @@ impl Parser {
             if self.consume(TokenKind::Hash) {
                 let text = self.ident()?;
                 if text != "prototype" {
-                    return Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+                    return Err(self
+                        .error()
                         .with_message(format!("Unexpected token `{}`", self.peek().kind))
-                        .with_label(
-                            Label::new(self.peek().span.start..self.peek().span.end).with_message(
-                                format!(
-                                    "Expected `prototype` after `#` in struct, found `{}`",
-                                    text
-                                ),
-                            ),
-                        ));
+                        .with_label(self.label().with_message(format!(
+                            "Expected `prototype` after `#` in struct, found `{}`",
+                            text
+                        ))));
                 }
                 self.require(TokenKind::LeftParen)?;
                 let path = self.string()?;
@@ -157,14 +161,16 @@ impl Parser {
             }
         }
         if !self.consume(TokenKind::RightParen) {
-            return Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+            return Err(self
+                .error()
                 .with_message(format!("Unexpected token `{}`", self.peek().kind))
                 .with_label(
-                    Label::new(self.peek().span.start..self.peek().span.end)
+                    self.label()
                         .with_message(format!("Expected `)`, found `{}`", self.peek().text)),
                 )
                 .with_label(
-                    Label::new(start..self.peek().span.start).with_message("Struct begins here"),
+                    self.label_span(start..start)
+                        .with_message("Struct begins here"),
                 )
                 .with_note("Expected `)` at end of struct"));
         }
@@ -178,14 +184,16 @@ impl Parser {
 
     fn tuple(&mut self, start: usize) -> Result<Value> {
         if !self.consume(TokenKind::LeftParen) {
-            return Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+            return Err(self
+                .error()
                 .with_message(format!("Unexpected token `{}`", self.peek().kind))
                 .with_label(
-                    Label::new(self.peek().span.start..self.peek().span.end)
+                    self.label()
                         .with_message(format!("Expected `(`, found `{}`", self.peek().text)),
                 )
                 .with_label(
-                    Label::new(start..self.peek().span.start).with_message("Tuple begins here"),
+                    self.label_span(start..start)
+                        .with_message("Tuple begins here"),
                 )
                 .with_note("Expected `(` at start of tuple"));
         }
@@ -226,14 +234,16 @@ impl Parser {
         }
 
         if !self.consume(TokenKind::RightBrace) {
-            return Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+            return Err(self
+                .error()
                 .with_message(format!("Unexpected token `{}`", self.peek().kind))
                 .with_label(
-                    Label::new(self.peek().span.start..self.peek().span.end)
+                    self.label()
                         .with_message(format!("Expected `}}`, found `{}`", self.peek().text)),
                 )
                 .with_label(
-                    Label::new(self.pos()..self.peek().span.start).with_message("Map begins here"),
+                    self.label_span(self.pos()..self.pos())
+                        .with_message("Map begins here"),
                 )
                 .with_note("Expected `}` at end of map"));
         }
@@ -242,6 +252,7 @@ impl Parser {
     }
 
     fn seq(&mut self) -> Result<Value> {
+        let start = self.pos();
         self.require(TokenKind::LeftBracket)?;
 
         let mut values = Vec::new();
@@ -258,14 +269,15 @@ impl Parser {
         }
 
         if !self.consume(TokenKind::RightBracket) {
-            return Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+            return Err(self
+                .error()
                 .with_message(format!("Unexpected token `{}`", self.peek().kind))
                 .with_label(
-                    Label::new(self.peek().span.start..self.peek().span.end)
+                    self.label()
                         .with_message(format!("Expected `]`, found `{}`", self.peek().text)),
                 )
                 .with_label(
-                    Label::new(self.peek().span.start..self.peek().span.end)
+                    self.label_span(start..start)
                         .with_message("List begins here"),
                 )
                 .with_note("Expected `]` at end of list"));
@@ -284,19 +296,19 @@ impl Parser {
                 self.require(TokenKind::RightParen)?;
                 Ok(Value::Include(path))
             }
-            "prototype" => Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+            "prototype" => Err(self
+                .error()
                 .with_message("Unexpected #prototype directive")
-                .with_label(Label::new(start..self.peek().span.end).with_message(
+                .with_label(self.label_span(start..self.peek().span.end).with_message(
                     "Expected value but found `#prototype`. Only structs can have prototypes.",
                 ))),
-            ident => Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+            ident => Err(self
+                .error()
                 .with_message(format!(
                     "Unknown directive `#{}`. Valid directives are `include` and `prototype`.",
                     ident
                 ))
-                .with_label(
-                    Label::new(self.peek().span.start..self.peek().span.end).with_message(""),
-                )),
+                .with_label(self.label())),
         }
     }
 
@@ -317,21 +329,22 @@ impl Parser {
                     '0' => string.push('\0'),
                     _ => {
                         self.errors.push(
-                                    Report::build(
-                                        ReportKind::Error,
-                                        (),
-                                        self.peek().span.start + i - 1,
-                                    )
-                                    .with_message(format!("unknown character escape: `\\{}`", char))
-                                    .with_label(
-                                        Label::new(
-                                            self.peek().span.start + i - 1
-                                                ..self.peek().span.start + i,
-                                        )
-                                        .with_message(""),
-                                    )
-                                    .with_note("Valid escape sequences are: `\\n`, `\\r`, `\\t`, `\\\"`, `\\0`"),
-                                );
+                            Report::build(
+                                ReportKind::Error,
+                                self.source_path.to_string(),
+                                self.peek().span.start + i - 1,
+                            )
+                            .with_message(format!("unknown character escape: `\\{}`", char))
+                            .with_label(
+                                self.label_span(
+                                    self.peek().span.start + i - 1..self.peek().span.start + i,
+                                )
+                                .with_message(""),
+                            )
+                            .with_note(
+                                "Valid escape sequences are: `\\n`, `\\r`, `\\t`, `\\\"`, `\\0`",
+                            ),
+                        );
                     }
                 }
                 escaped = false;
@@ -377,15 +390,14 @@ impl Parser {
         if self.peek().kind == token {
             Ok(self.advance())
         } else {
-            Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+            Err(self
+                .error()
                 .with_message("Unexpected token".to_string())
-                .with_label(
-                    Label::new(self.peek().span.start..self.peek().span.end).with_message(format!(
-                        "Expected {}, found {}",
-                        token,
-                        self.peek().kind
-                    )),
-                ))
+                .with_label(self.label().with_message(format!(
+                    "Expected {}, found {}",
+                    token,
+                    self.peek().kind
+                ))))
         }
     }
 
@@ -393,10 +405,11 @@ impl Parser {
         if self.peek().kind == TokenKind::Ident {
             Ok(self.advance().text.clone())
         } else {
-            Err(Report::build(ReportKind::Error, (), self.peek().span.start)
+            Err(self
+                .error()
                 .with_message("Unexpected token".to_string())
                 .with_label(
-                    Label::new(self.peek().span.start..self.peek().span.end)
+                    self.label()
                         .with_message(format!("Expected identifier, found {}", self.peek().kind,)),
                 ))
         }
@@ -415,5 +428,24 @@ impl Parser {
 
     fn pos(&self) -> usize {
         self.peek().span.start
+    }
+
+    fn report(&self, kind: ReportKind) -> ReportBuilder<(String, Range<usize>)> {
+        Report::build(kind, self.source_path.to_string(), self.pos())
+    }
+
+    fn error(&self) -> ReportBuilder<(String, Range<usize>)> {
+        self.report(ReportKind::Error)
+    }
+
+    fn label_span(&self, span: Range<usize>) -> Label<(String, Range<usize>)> {
+        Label::new((self.source_path.to_string(), span))
+    }
+
+    fn label(&self) -> Label<(String, Range<usize>)> {
+        Label::new((
+            self.source_path.to_string(),
+            self.peek().span.start..self.peek().span.end,
+        ))
     }
 }
