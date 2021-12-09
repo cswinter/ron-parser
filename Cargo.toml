@@ -11,6 +11,9 @@ ariadne = "0.1"
 indexmap = "1.7"
 maplit = "1.0"
 
+[dev-dependencies]
+tempdir = "0.3"
+
 [lib]
 name = "ron_parser"
 path = "src/lib.rs"

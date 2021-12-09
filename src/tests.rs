@@ -1,6 +1,10 @@
+use std::fs::File;
+use std::io::Write;
+
 use ariadne::Config;
 use indexmap::indexmap;
 
+use crate::load;
 use crate::parser::Parser;
 use crate::value::{Map, Number, Struct, Value};
 
@@ -389,4 +393,69 @@ fn test_parse_with_includes(input: &str, expected: Value) {
         panic!("Expected no errors");
     }
     assert_eq!(val, expected);
+}
+
+static ROOT_CONFIG: &str = r#"
+GoblinWizard(
+    #prototype("goblin.ron"),
+    name: "Goblin Wizard",
+    spells: #include("spells.ron"),
+)
+"#;
+
+static GOBLIN: &str = r#"
+Goblin(
+    minHealth: 10,
+    maxHealth: 20,
+    resists: [
+        "fire",
+        "cold",
+    ],
+    weaknesses: [
+        "lightning",
+        "poison",
+    ],
+)
+"#;
+
+static SPELLS: &str = r#"
+[
+    Spell(
+        name: "Fireball",
+        damage: 10,
+        manaCost: 5,
+    ),
+    Spell(
+        name: "Lightning Bolt",
+        damage: 15,
+        manaCost: 10,
+    ),
+]
+"#;
+
+#[test]
+fn test_resolve() {
+    // Create temporary files
+    let tmp_dir = tempdir::TempDir::new("root").unwrap();
+    // Write all the files
+    let mut tmp_file = tmp_dir.path().join("config.ron");
+    let mut file = File::create(&tmp_file).unwrap();
+    file.write_all(ROOT_CONFIG.as_bytes()).unwrap();
+    tmp_file = tmp_dir.path().join("goblin.ron");
+    file = File::create(&tmp_file).unwrap();
+    file.write_all(GOBLIN.as_bytes()).unwrap();
+    tmp_file = tmp_dir.path().join("spells.ron");
+    file = File::create(&tmp_file).unwrap();
+    file.write_all(SPELLS.as_bytes()).unwrap();
+
+    let value = load(tmp_dir.path().join("config.ron")).unwrap().value;
+    let expected = Value::Struct(Struct {
+        prototype: None,
+        name: Some("GoblinWizard".to_string()),
+        fields: indexmap! {"name".to_string() => Value::String("Goblin Wizard".to_string()), "spells".to_string() => Value::Seq(vec![Value::Struct(Struct{prototype:None, name:Some("Spell".to_string()), fields: indexmap!{"name".to_string() => Value::String("Fireball".to_string()), "damage".to_string() => Value::Number(Number::from(10)), "manaCost".to_string() => Value::Number(Number::from(5))} }), Value::Struct(Struct{prototype:None, name:Some("Spell".to_string()), fields: indexmap!{"name".to_string() => Value::String("Lightning Bolt".to_string()), "damage".to_string() => Value::Number(Number::from(15)), "manaCost".to_string() => Value::Number(Number::from(10))} })]), "minHealth".to_string() => Value::Number(Number::from(10)), "maxHealth".to_string() => Value::Number(Number::from(20)), "resists".to_string() => Value::Seq(vec![Value::String("fire".to_string()), Value::String("cold".to_string())]), "weaknesses".to_string() => Value::Seq(vec![Value::String("lightning".to_string()), Value::String("poison".to_string())])},
+    });
+    if value != expected {
+        println!("{}", value.fmt_as_rust());
+    }
+    assert_eq!(value, expected)
 }

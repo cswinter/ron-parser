@@ -1,0 +1,5 @@
+GoblinWizard(
+    #prototype("goblin.ron"),
+    name: "Goblin Wizard",
+    spells: #include("spells.ron"),
+)

@@ -1,0 +1,7 @@
+Goblin(
+  name: "Goblin",
+  minHealth: 20,
+  maxHealth: 30,
+  resists: ["cold", "poison"],
+  weaknesses: ["fire", "light"]
+)
