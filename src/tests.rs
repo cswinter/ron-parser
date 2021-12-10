@@ -24,6 +24,12 @@ fn test_simple_struct() {
     test_parse(SIMPLE_STRUCT, expected);
 }
 
+#[test]
+fn test_trivial_map() {
+    let expected = Value::Map(Map(indexmap! {}));
+    test_parse("{}", expected);
+}
+
 static UNIT_STRUCT: &str = r#"
 Config(
     version: 1,

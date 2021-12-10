@@ -195,15 +195,12 @@ impl Parser {
     fn map(&mut self) -> Result<Value> {
         self.require(TokenKind::LeftBrace)?;
         let mut fields = IndexMap::default();
-        loop {
+        while self.peek().kind != TokenKind::RightBrace {
             let key = self.value();
             self.require(TokenKind::Colon)?;
             let value = self.value();
             fields.insert(key, value);
             if !self.consume(TokenKind::Comma) {
-                break;
-            }
-            if self.peek().kind == TokenKind::RightBrace {
                 break;
             }
         }
