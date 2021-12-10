@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use ariadne::Report;
 use lexer::Lexer;
-use value::{Struct, Value};
+pub use value::{Float, Map, Number, Struct, Value};
 
 pub struct Parse {
     pub value: value::Value,
