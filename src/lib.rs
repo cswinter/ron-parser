@@ -128,7 +128,7 @@ impl Loader {
             | Value::Number(_)
             | Value::Option(_)
             | Value::String(_)
-            | Value::Tuple(_)
+            | Value::Tuple(_, _)
             | Value::Unit => {}
         }
         Ok(())

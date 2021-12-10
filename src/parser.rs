@@ -109,70 +109,58 @@ impl Parser {
         {
             self.structure(start, name)
         } else {
-            self.tuple(start)
+            self.tuple(start, name)
         }
     }
 
     fn structure(&mut self, start: usize, name: Option<String>) -> Result<Value> {
-        if !self.consume(TokenKind::LeftParen) {
-            return Err(self
-                .error()
-                .with_message(format!("Unexpected token `{}`", self.peek().kind))
-                .with_label(
-                    self.label()
-                        .with_message(format!("Expected `(`, found `{}`", self.peek().text)),
-                )
-                .with_label(
-                    self.label_span(start..start)
-                        .with_message("Struct begins here"),
-                )
-                .with_note("Expected `(` at start of struct"));
-        }
-
         let mut fields = IndexMap::default();
         let mut prototype = None;
-        loop {
-            if self.consume(TokenKind::Hash) {
-                let text = self.ident()?;
-                if text != "prototype" {
-                    return Err(self
-                        .error()
-                        .with_message(format!("Unexpected token `{}`", self.peek().kind))
-                        .with_label(self.label().with_message(format!(
-                            "Expected `prototype` after `#` in struct, found `{}`",
-                            text
-                        ))));
+
+        if self.consume(TokenKind::LeftParen) {
+            loop {
+                if self.consume(TokenKind::Hash) {
+                    let text = self.ident()?;
+                    if text != "prototype" {
+                        return Err(self
+                            .error()
+                            .with_message(format!("Unexpected token `{}`", self.peek().kind))
+                            .with_label(self.label().with_message(format!(
+                                "Expected `prototype` after `#` in struct, found `{}`",
+                                text
+                            ))));
+                    }
+                    self.require(TokenKind::LeftParen)?;
+                    let path = self.string()?;
+                    self.require(TokenKind::RightParen)?;
+                    prototype = Some(path);
+                } else {
+                    let field_name = self.require(TokenKind::Ident)?.text.clone();
+                    self.require(TokenKind::Colon)?;
+                    let value = self.value();
+                    fields.insert(field_name, value);
                 }
-                self.require(TokenKind::LeftParen)?;
-                let path = self.string()?;
-                self.require(TokenKind::RightParen)?;
-                prototype = Some(path);
-            } else {
-                let field_name = self.require(TokenKind::Ident)?.text.clone();
-                self.require(TokenKind::Colon)?;
-                let value = self.value();
-                fields.insert(field_name, value);
+                if !self.consume(TokenKind::Comma) {
+                    break;
+                }
+                if self.peek().kind == TokenKind::RightParen {
+                    break;
+                }
             }
-            if !self.consume(TokenKind::Comma) {
-                break;
+            if !self.consume(TokenKind::RightParen) {
+                return Err(self
+                    .error()
+                    .with_message(format!("Unexpected token `{}`", self.peek().kind))
+                    .with_label(
+                        self.label()
+                            .with_message(format!("Expected `)`, found `{}`", self.peek().text)),
+                    )
+                    .with_label(
+                        self.label_span(start..start)
+                            .with_message("Struct begins here"),
+                    )
+                    .with_note("Expected `)` at end of struct"));
             }
-            if self.peek().kind == TokenKind::RightParen {
-                break;
-            }
-        }
-        if !self.consume(TokenKind::RightParen) {
-            return Err(self
-                .error()
-                .with_message(format!("Unexpected token `{}`", self.peek().kind))
-                .with_label(
-                    self.label()
-                        .with_message(format!("Expected `)`, found `{}`", self.peek().text)),
-                )
-                .with_label(
-                    self.label_span(start..start)
-                        .with_message("Struct begins here"),
-                )
-                .with_note("Expected `)` at end of struct"));
         }
 
         Ok(Value::Struct(Struct {
@@ -182,38 +170,25 @@ impl Parser {
         }))
     }
 
-    fn tuple(&mut self, start: usize) -> Result<Value> {
-        if !self.consume(TokenKind::LeftParen) {
-            return Err(self
-                .error()
-                .with_message(format!("Unexpected token `{}`", self.peek().kind))
-                .with_label(
-                    self.label()
-                        .with_message(format!("Expected `(`, found `{}`", self.peek().text)),
-                )
-                .with_label(
-                    self.label_span(start..start)
-                        .with_message("Tuple begins here"),
-                )
-                .with_note("Expected `(` at start of tuple"));
-        }
+    fn tuple(&mut self, _start: usize, name: Option<String>) -> Result<Value> {
         let mut values = Vec::new();
-        loop {
-            if self.peek().kind == TokenKind::RightParen {
-                break;
+        if self.consume(TokenKind::LeftParen) {
+            loop {
+                if self.peek().kind == TokenKind::RightParen {
+                    break;
+                }
+                values.push(self.value());
+                if !self.consume(TokenKind::Comma) {
+                    break;
+                }
             }
-            values.push(self.value());
-            if !self.consume(TokenKind::Comma) {
-                break;
-            }
+            self.require(TokenKind::RightParen)?;
         }
 
-        self.require(TokenKind::RightParen)?;
-
-        if values.is_empty() {
+        if values.is_empty() && name.is_none() {
             Ok(Value::Unit)
         } else {
-            Ok(Value::Tuple(values))
+            Ok(Value::Tuple(name, values))
         }
     }
 

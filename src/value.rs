@@ -233,7 +233,10 @@ impl Ord for Struct {
 /// Note: equality is only given if both values and order of values match
 impl PartialEq for Struct {
     fn eq(&self, other: &Struct) -> bool {
-        self.iter().zip(other.iter()).all(|(a, b)| a == b) && self.name == other.name
+        self.fields.len() == other.fields.len()
+            && self.iter().zip(other.iter()).all(|(a, b)| a == b)
+            && self.name == other.name
+            && self.prototype == other.prototype
     }
 }
 
@@ -434,7 +437,7 @@ pub enum Value {
     Option(Option<Box<Value>>),
     String(String),
     Seq(Vec<Value>),
-    Tuple(Vec<Value>),
+    Tuple(Option<String>, Vec<Value>),
     Include(String),
     Unit,
 }
@@ -479,8 +482,12 @@ impl Value {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Value::Tuple(t) => format!(
-                "Value::Tuple(vec![{}])",
+            Value::Tuple(name, t) => format!(
+                "Value::Tuple({}, vec![{}])",
+                match name {
+                    None => "None".to_string(),
+                    Some(p) => format!("Some(\"{}\".to_string())", p),
+                },
                 t.iter()
                     .map(|v| v.fmt_as_rust())
                     .collect::<Vec<_>>()
