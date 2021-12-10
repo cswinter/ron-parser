@@ -498,3 +498,28 @@ impl Value {
         }
     }
 }
+
+impl From<Value> for ron::Value {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Bool(b) => ron::Value::Bool(b),
+            Value::Char(c) => ron::Value::Char(c),
+            Value::Map(m) => ron::Value::Map(ron::value::Map(
+                m.0.into_iter().map(|(k, v)| (k.into(), v.into())).collect(),
+            )),
+            Value::Struct(s) => ron::Value::Struct(ron::value::Struct {
+                name: s.name,
+                fields: s.fields.into_iter().map(|(k, v)| (k, v.into())).collect(),
+            }),
+            Value::Number(Number::Float(f)) => ron::Value::Number(ron::Number::from(f.0)),
+            Value::Number(Number::Integer(i)) => ron::Value::Number(ron::Number::from(i)),
+            Value::Option(None) => ron::Value::Option(None),
+            Value::Option(Some(v)) => ron::Value::Option(Some(Box::new((*v).into()))),
+            Value::String(s) => ron::Value::String(s),
+            Value::Seq(s) => ron::Value::Seq(s.into_iter().map(ron::Value::from).collect()),
+            Value::Tuple(_, t) => ron::Value::Tuple(t.into_iter().map(ron::Value::from).collect()),
+            Value::Include(_) => ron::Value::Unit,
+            Value::Unit => ron::Value::Unit,
+        }
+    }
+}

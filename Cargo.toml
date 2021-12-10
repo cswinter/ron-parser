@@ -10,6 +10,7 @@ strum_macros = "0.22"
 ariadne = "0.1"
 indexmap = "1.7"
 maplit = "1.0"
+ron = { git = "https://github.com/cswinter/ron.git", rev = "2599f54", features = ["indexmap"] }
 
 [dev-dependencies]
 tempdir = "0.3"
